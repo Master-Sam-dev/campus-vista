@@ -44,7 +44,7 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
 
     // ================= SCENE =================
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x20232a); // subtle dark background for GitHub Pages
+    scene.background = new THREE.Color(0xaaaaaa); // light gray for visibility
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(
@@ -54,21 +54,19 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
       1000
     );
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      powerPreference: "high-performance",
-    });
-
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = false;
+    renderer.shadowMap.enabled = true;
     mount.appendChild(renderer.domElement);
 
     // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 1));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8)); // softer ambient
     const dirLight = new THREE.DirectionalLight(0xffffff, 2);
     dirLight.position.set(10, 20, 10);
     scene.add(dirLight);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+    scene.add(hemiLight);
 
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -103,16 +101,15 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
 
     // ================= LOADER =================
     const manager = new THREE.LoadingManager();
-    manager.onError = () => {
+    manager.onError = (url) => {
+      console.error("Failed to load:", url);
       setError("Model failed to load. Check network or file path.");
       setLoading(false);
     };
 
     const loader = new GLTFLoader(manager);
     const draco = new DRACOLoader();
-    draco.setDecoderPath(
-      "https://www.gstatic.com/draco/versioned/decoders/1.5.7/"
-    );
+    draco.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
     loader.setDRACOLoader(draco);
 
     loader.load(
@@ -149,14 +146,11 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
           }
         });
 
-        setNavTargets([
-          ...detectedTargets,
-          ...NAV_TARGETS.map((t) => ({
-            label: t.label,
-            type: "point",
-            position: t.position,
-          })),
-        ]);
+        setNavTargets([...detectedTargets, ...NAV_TARGETS.map(t => ({
+          label: t.label,
+          type: "point",
+          position: t.position
+        }))]);
 
         // Camera starting position
         const box = new THREE.Box3().setFromObject(gltf.scene);
@@ -165,6 +159,12 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
         camera.position.set(center.x, box.min.y + PLAYER_HEIGHT, center.z + size.z * 0.3);
         camera.lookAt(center);
 
+        setLoading(false);
+      },
+      undefined,
+      (err) => {
+        console.error("GLTF load error:", err);
+        setError("Model failed to load. Check network or file path.");
         setLoading(false);
       }
     );
@@ -183,21 +183,14 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
         });
     };
     const upHandler = (e) => (keys[e.code] = false);
-
     document.addEventListener("keydown", downHandler);
     document.addEventListener("keyup", upHandler);
     renderer.domElement.addEventListener("click", () => controls.lock());
 
     // ================= NAVIGATION LINE =================
     const navGeometry = new THREE.BufferGeometry();
-    navGeometry.setAttribute(
-      "position",
-      new THREE.BufferAttribute(new Float32Array(6), 3)
-    );
-    const navLine = new THREE.Line(
-      navGeometry,
-      new THREE.LineBasicMaterial({ color: 0xff4444, depthTest: false })
-    );
+    navGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
+    const navLine = new THREE.Line(navGeometry, new THREE.LineBasicMaterial({ color: 0xff4444, depthTest: false }));
     navLine.renderOrder = 999;
     scene.add(navLine);
 
@@ -205,23 +198,13 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     const indicator = new THREE.Group();
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.18, 0.24, 32),
-      new THREE.MeshBasicMaterial({
-        color: 0x00e0ff,
-        transparent: true,
-        opacity: 0.75,
-        side: THREE.DoubleSide,
-      })
+      new THREE.MeshBasicMaterial({ color: 0x00e0ff, transparent: true, opacity: 0.75, side: THREE.DoubleSide })
     );
     ring.rotation.x = Math.PI / 2;
 
     const arrow = new THREE.Mesh(
       new THREE.PlaneGeometry(0.14, 0.22),
-      new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.95,
-        side: THREE.DoubleSide,
-      })
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, side: THREE.DoubleSide })
     );
     arrow.position.z = 0.18;
     arrow.rotation.x = -Math.PI / 2;
@@ -264,14 +247,7 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
         const end = targetWorldPosRef.current.clone();
         end.y = start.y;
 
-        navGeometry.attributes.position.array.set([
-          start.x,
-          start.y,
-          start.z,
-          end.x,
-          end.y,
-          end.z,
-        ]);
+        navGeometry.attributes.position.array.set([start.x, start.y, start.z, end.x, end.y, end.z]);
         navGeometry.attributes.position.needsUpdate = true;
 
         indicator.visible = true;
@@ -281,9 +257,7 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
         indicator.position.copy(camera.position).add(forward.multiplyScalar(1.4));
         indicator.position.y += 0.25;
 
-        const dir = new THREE.Vector3()
-          .subVectors(targetWorldPosRef.current, camera.position)
-          .normalize();
+        const dir = new THREE.Vector3().subVectors(targetWorldPosRef.current, camera.position).normalize();
         const targetAngle = Math.atan2(dir.x, dir.z);
         smoothRotation = THREE.MathUtils.lerp(smoothRotation, targetAngle, 0.08);
         indicator.rotation.y = smoothRotation;
