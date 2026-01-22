@@ -4,13 +4,13 @@
   "private": false,
   "version": "0.0.0",
   "type": "module",
-"scripts": {
-  "start": "vite",               
-  "dev": "vite",                    
-  "build": "vite build",            
-  "predeploy": "npm run build",    
-  "deploy": "gh-pages -d dist -b gh-pages -f" 
-},
+  "scripts": {
+    "start": "vite",
+    "dev": "vite",
+    "build": "vite build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist -b gh-pages -f"
+  },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
