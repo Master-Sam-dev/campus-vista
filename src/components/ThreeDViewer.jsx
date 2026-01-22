@@ -11,7 +11,7 @@ const SPRINT_MULT = 2.25;
 const JUMP_POWER = 10;
 const DOOR_DISTANCE = 2.2;
 
-/* Manual point targets (kept) */
+/* Manual point targets */
 const NAV_TARGETS = [
   { label: "Gate", position: new THREE.Vector3(5, 0, 10) },
   { label: "Parking Area", position: new THREE.Vector3(-8, 0, 4) },
@@ -23,7 +23,10 @@ const NAV_TARGETS = [
 const formatName = name =>
   name.replace(/[_\-]/g, " ").replace(/\d+/g, "").replace(/\s+/g, " ").trim();
 
-export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
+export default function ThreeDViewer({
+  // ✅ GitHub Pages safe path
+  modelUrl = "/campus-vista/input.glb",
+}) {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
 
@@ -42,14 +45,14 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
 
     /* ================= SCENE ================= */
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
+    scene.background = new THREE.Color(0x0b1220); // ✅ not pure black
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
       0.1,
-      1000
+      1500
     );
 
     const renderer = new THREE.WebGLRenderer({
@@ -59,14 +62,19 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = false;
     mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-    dirLight.position.set(10, 20, 10);
+    /* ================= LIGHTING (FIXED) ================= */
+    scene.add(new THREE.AmbientLight(0xffffff, 2.5));
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 4);
+    dirLight.position.set(20, 40, 20);
     scene.add(dirLight);
 
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.2);
+    scene.add(hemi);
+
+    /* ================= CONTROLS ================= */
     const controls = new PointerLockControls(camera, renderer.domElement);
     const player = { velocity: new THREE.Vector3(), onGround: false };
 
@@ -99,7 +107,8 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     /* ================= LOADER ================= */
     const manager = new THREE.LoadingManager();
     manager.onError = () => {
-      setError("Model failed to load. Check network or file path.");
+      console.error("❌ GLB LOAD FAILED:", modelUrl);
+      setError("Model failed to load. Check GitHub Pages path.");
       setLoading(false);
     };
 
@@ -113,34 +122,26 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     loader.load(
       modelUrl,
       gltf => {
-        gltf.scene.traverse(obj => {
-          if (obj.isMesh) {
-            obj.frustumCulled = true;
-            obj.geometry.computeBoundingSphere();
-          }
-        });
-
         scene.add(gltf.scene);
 
         const detectedTargets = [];
         const addedNames = new Set();
 
-        gltf.scene.traverse(child => {
-          if (!child.isMesh) return;
-          groundMeshes.push(child);
+        gltf.scene.traverse(obj => {
+          if (!obj.isMesh) return;
 
-          if (child.name.toLowerCase().includes("door")) {
-            child.userData.opened = false;
-            child.userData.near = false;
-            doors.push(child);
+          groundMeshes.push(obj);
+
+          if (obj.name.toLowerCase().includes("door")) {
+            obj.userData.opened = false;
+            obj.userData.near = false;
+            doors.push(obj);
           }
 
-          if (child.name && child.name.length > 2) {
-            const label = formatName(child.name);
-            if (!addedNames.has(label)) {
-              detectedTargets.push({ label, type: "mesh", ref: child });
-              addedNames.add(label);
-            }
+          const label = formatName(obj.name);
+          if (label && !addedNames.has(label)) {
+            detectedTargets.push({ label, type: "mesh", ref: obj });
+            addedNames.add(label);
           }
         });
 
@@ -196,44 +197,13 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     );
     const navLine = new THREE.Line(
       navGeometry,
-      new THREE.LineBasicMaterial({ color: 0xff4444, depthTest: false })
+      new THREE.LineBasicMaterial({ color: 0xff4444 })
     );
-    navLine.renderOrder = 999;
     scene.add(navLine);
-
-    /* ================= HUD ================= */
-    const indicator = new THREE.Group();
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.18, 0.24, 32),
-      new THREE.MeshBasicMaterial({
-        color: 0x00e0ff,
-        transparent: true,
-        opacity: 0.75,
-        side: THREE.DoubleSide,
-      })
-    );
-    ring.rotation.x = Math.PI / 2;
-
-    const arrow = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.14, 0.22),
-      new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.95,
-        side: THREE.DoubleSide,
-      })
-    );
-    arrow.position.z = 0.18;
-    arrow.rotation.x = -Math.PI / 2;
-
-    indicator.add(ring, arrow);
-    indicator.visible = false;
-    scene.add(indicator);
 
     /* ================= LOOP ================= */
     const clock = new THREE.Clock();
     let groundTimer = 0;
-    let smoothRotation = 0;
 
     const animate = () => {
       requestAnimationFrame(animate);
@@ -255,39 +225,6 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
           checkDoors();
           groundTimer = 0;
         }
-      }
-
-      if (activeTargetRef.current) {
-        activeTargetRef.current.getWorldPosition(
-          targetWorldPosRef.current
-        );
-
-        const start = camera.position.clone();
-        const end = targetWorldPosRef.current.clone();
-        end.y = start.y;
-
-        navGeometry.attributes.position.array.set([
-          start.x, start.y, start.z,
-          end.x, end.y, end.z,
-        ]);
-        navGeometry.attributes.position.needsUpdate = true;
-
-        indicator.visible = true;
-
-        const forward = new THREE.Vector3();
-        camera.getWorldDirection(forward);
-        indicator.position.copy(camera.position).add(forward.multiplyScalar(1.4));
-        indicator.position.y += 0.25;
-
-        const dir = new THREE.Vector3()
-          .subVectors(targetWorldPosRef.current, camera.position)
-          .normalize();
-
-        const targetAngle = Math.atan2(dir.x, dir.z);
-        smoothRotation = THREE.MathUtils.lerp(smoothRotation, targetAngle, 0.08);
-        indicator.rotation.y = smoothRotation;
-      } else {
-        indicator.visible = false;
       }
 
       renderer.render(scene, camera);
@@ -313,43 +250,10 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     };
   }, [modelUrl]);
 
-  const handleSelect = e => {
-    const value = e.target.value;
-    setSelectedTarget(value);
-
-    const target = navTargets.find(t => t.label === value);
-    if (!target) {
-      activeTargetRef.current = null;
-      return;
-    }
-
-    if (target.type === "mesh") {
-      activeTargetRef.current = target.ref;
-    } else {
-      if (!dummyPointRef.current) {
-        dummyPointRef.current = new THREE.Object3D();
-        sceneRef.current.add(dummyPointRef.current);
-      }
-      dummyPointRef.current.position.copy(target.position);
-      dummyPointRef.current.position.y += PLAYER_HEIGHT;
-      dummyPointRef.current.updateMatrixWorld(true);
-      activeTargetRef.current = dummyPointRef.current;
-    }
-  };
-
   return (
     <div ref={mountRef} style={{ width: "100vw", height: "100vh" }}>
-      {loading && <div style={overlayStyle}>Loading Building…</div>}
+      {loading && <div style={overlayStyle}>Loading Campus…</div>}
       {error && <div style={{ ...overlayStyle, color: "red" }}>{error}</div>}
-
-      <select value={selectedTarget} onChange={handleSelect} style={selectStyle}>
-        <option value="">Select Destination</option>
-        {navTargets.map(t => (
-          <option key={t.label} value={t.label}>
-            {t.label}
-          </option>
-        ))}
-      </select>
     </div>
   );
 }
@@ -357,24 +261,11 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
 const overlayStyle = {
   position: "absolute",
   inset: 0,
-  background: "#000",
+  background: "rgba(0,0,0,0.85)",
   color: "#fff",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "42px",
+  fontSize: "32px",
   zIndex: 10,
-};
-
-const selectStyle = {
-  position: "absolute",
-  top: "20px",
-  left: "50%",
-  transform: "translateX(-50%)",
-  padding: "10px 14px",
-  fontSize: "16px",
-  borderRadius: "8px",
-  border: "none",
-  outline: "none",
-  zIndex: 20,
 };
