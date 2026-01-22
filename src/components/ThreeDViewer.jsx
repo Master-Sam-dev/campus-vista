@@ -25,7 +25,7 @@ const NAV_TARGETS = [
 const formatName = (name) =>
   name.replace(/[_\-]/g, " ").replace(/\d+/g, "").replace(/\s+/g, " ").trim();
 
-export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
+export default function ThreeDViewer({ modelUrl = "input.glb" }) {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
 
@@ -44,7 +44,7 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
 
     // ================= SCENE =================
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xaaaaaa); // light gray for visibility
+    scene.background = new THREE.Color(0x20232a);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(
@@ -57,16 +57,14 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = false;
     mount.appendChild(renderer.domElement);
 
     // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.8)); // softer ambient
+    scene.add(new THREE.AmbientLight(0xffffff, 1));
     const dirLight = new THREE.DirectionalLight(0xffffff, 2);
     dirLight.position.set(10, 20, 10);
     scene.add(dirLight);
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
-    scene.add(hemiLight);
 
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -112,8 +110,9 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     draco.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
     loader.setDRACOLoader(draco);
 
+    // ✅ Fix: use BASE_URL for GitHub Pages
     loader.load(
-      modelUrl,
+      import.meta.env.BASE_URL + modelUrl,
       (gltf) => {
         gltf.scene.traverse((obj) => {
           if (obj.isMesh) {
@@ -187,7 +186,7 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     document.addEventListener("keyup", upHandler);
     renderer.domElement.addEventListener("click", () => controls.lock());
 
-    // ================= NAVIGATION LINE =================
+    // ================= NAV LINE =================
     const navGeometry = new THREE.BufferGeometry();
     navGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
     const navLine = new THREE.Line(navGeometry, new THREE.LineBasicMaterial({ color: 0xff4444, depthTest: false }));
@@ -267,7 +266,6 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
 
       renderer.render(scene, camera);
     };
-
     animate();
 
     const onResize = () => {
@@ -287,7 +285,7 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
     };
   }, [modelUrl]);
 
-  // ================= NAVIGATION SELECT =================
+  // ================= NAV SELECT =================
   const handleSelect = (e) => {
     const value = e.target.value;
     setSelectedTarget(value);
@@ -320,9 +318,7 @@ export default function ThreeDViewer({ modelUrl = "/input.glb" }) {
       <select value={selectedTarget} onChange={handleSelect} style={selectStyle}>
         <option value="">Select Destination</option>
         {navTargets.map((t) => (
-          <option key={t.label} value={t.label}>
-            {t.label}
-          </option>
+          <option key={t.label} value={t.label}>{t.label}</option>
         ))}
       </select>
     </div>
