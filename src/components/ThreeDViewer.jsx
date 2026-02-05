@@ -259,7 +259,7 @@ export default function ThreeDViewer({ modelUrl = "input.glb" }) {
       const clampedDist = Math.min(dist, maxDist);
       joystickInner.style.transform = `translate(${clampedDist*Math.cos(angle)}px, ${clampedDist*Math.sin(angle)}px)`;
       mobileInput.right = clampedDist * Math.cos(angle)/maxDist;
-      mobileInput.forward = clampedDist * -Math.sin(angle)/maxDist; // correct: up = forward
+      mobileInput.forward = clampedDist * Math.sin(angle)/maxDist; // ✅ fixed inversion
     };
 
     joystickOuter.addEventListener("touchstart", (e) => {
